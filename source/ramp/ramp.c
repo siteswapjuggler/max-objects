@@ -13,7 +13,6 @@
 
 /** 
     TODO-LIST
-    vérifier la gestion du masque
     structure variable >> voir Flexible Array Member
 */
 
@@ -75,6 +74,7 @@ typedef struct _inter {
     double      act;        // actual value
     long        prog;       // progression of the ramp
     long        time;       // length of the ramp (in ms)
+    bool        mask;       // is this element masked or not
     enum mode   mode;       // type of interpolation: linear, etc...
     e_max_atomtypes type;   // type of data A_FLOAT or A_LONG
 } t_inter;
@@ -95,6 +95,7 @@ typedef struct _ramp {          // defines our object's internal variables for e
     void        *r_proxy;       // inlet proxy
     void        *r_outlet1;		// outlet creation - inlets are automatic, but objects must "own" their own outlets
     void        *r_outlet2;		// outlet creation - inlets are automatic, but objects must "own" their own outlets
+    void        *r_outlet3;		// outlet creation - inlets are automatic, but objects must "own" their own outlets
 } t_ramp;
 
 void *ramp_new(t_symbol *s, long argc, t_atom *argv);
@@ -106,6 +107,7 @@ void ramp_list(t_ramp *x, t_symbol *s, long argc, t_atom *argv);
 void ramp_set(t_ramp *x, t_symbol *s, long argc, t_atom *argv);
 void ramp_time(t_ramp *x, t_symbol *s, long argc, t_atom *argv);
 void ramp_mode(t_ramp *x, t_symbol *s, long argc, t_atom *argv);
+void ramp_mask(t_ramp *x, t_symbol *s, long argc, t_atom *argv);
 void ramp_any(t_ramp *x, t_symbol *s, long argc, t_atom *argv);
 
 void ramp_stop(t_ramp *x);
@@ -133,9 +135,9 @@ void ext_main(void *r) {
 	class_addmethod(c, (method)ramp_int,		"int",		A_LONG,     0);     // the method for an int in the left inlet                          (inlet 0)
     class_addmethod(c, (method)ramp_float,		"float",	A_FLOAT,    0);     // the method for a float in the left inlet                         (inlet 0)
     class_addmethod(c, (method)ramp_list,		"list",		A_GIMME,    0);     // the method for a list in the left inlet                          (inlet 0)
-    class_addmethod(c, (method)ramp_set,		"set",		A_GIMME,    0);     // the method to set an int, a float or a list in the left inlet    (inlet 0)
     class_addmethod(c, (method)ramp_time,		"time",		A_GIMME,    0);     // the method to set an int, a float or a list in the time inlet    (inlet 0)
     class_addmethod(c, (method)ramp_mode,		"mode",		A_GIMME,    0);     // the method to set an int, a float or a list in the kind inlet    (inlet 0)
+    class_addmethod(c, (method)ramp_mask,		"mask",		A_GIMME,    0);     // the method to set an int, a float or a list in the kind inlet    (inlet 0)
     
     class_addmethod(c, (method)ramp_stop,		"stop",     NULL,       0);     // stop the current ramp                                            (inlet 0)
     class_addmethod(c, (method)ramp_pause,		"pause",	NULL,       0);     // pause the current ramp                                           (inlet 0)
@@ -211,7 +213,7 @@ void *ramp_new(t_symbol *s, long argc, t_atom *argv) {	// n = float argument typ
                 
             case A_SYM:
                 if ((atom_getsym(argv+i)->s_name)[0]=='@')
-                    break;
+                    goto settings;
 
                 if (i==1&&argorder==1) {
                     post("ramp: mode can only be set once as an argument");
@@ -239,6 +241,7 @@ void *ramp_new(t_symbol *s, long argc, t_atom *argv) {	// n = float argument typ
         }
     }
 
+    settings:
     for (i=0;i<256;i++) {
         x->r_values[i].bgn   = val;         // set initial value in the instance's data structure
         x->r_values[i].dst   = val;         // set initial value in the instance's data structure
@@ -246,6 +249,7 @@ void *ramp_new(t_symbol *s, long argc, t_atom *argv) {	// n = float argument typ
         x->r_values[i].prog  = val;         // set initial value in the instance's data structure
         x->r_values[i].time  = time;        // set initial value in the instance's data structure
         x->r_values[i].mode  = mode;        // set initial value in the instance's data structure
+        x->r_values[i].mask  = true;           // set initial value in the instance's data structure
         x->r_values[i].type  = A_LONG;      // set initial value in the instance's data structure
         }
     
@@ -256,6 +260,7 @@ void *ramp_new(t_symbol *s, long argc, t_atom *argv) {	// n = float argument typ
     
     attr_args_process(x, argc, argv);       // process arguments
 
+    x->r_outlet3 = outlet_new(x, NULL);                          // create a flexible outlet and assign it to our outlet variable in the instance's data structure
     x->r_outlet2 = outlet_new(x, NULL);                          // create a flexible outlet and assign it to our outlet variable in the instance's data structure
     x->r_outlet1 = outlet_new(x, NULL);                          // create a flexible outlet and assign it to our outlet variable in the instance's data structure
 
@@ -278,26 +283,29 @@ void ramp_assist(t_ramp *x, void *b, long m, long a, char *s) {
     if (m == ASSIST_INLET) {
         switch (a) {
             case 0:
-                sprintf(s,"ramp: Destination Value of Ramp");
+                sprintf(s,"Destination Value of Ramp");
                 break;
             case 1:
-                sprintf(s,"ramp: Total Ramp Time in Milliseconds");
+                sprintf(s,"Total Ramp Time in Milliseconds");
                 break;
             case 2:
-                sprintf(s,"ramp: Ramp Interpolation Mode");
+                sprintf(s,"Ramp Interpolation Mode");
                 break;
             case 3:
-                sprintf(s,"ramp: Time Grain in Milliseconds");
+                sprintf(s,"Time Grain in Milliseconds");
                 break;
         }
     }
     else {
         switch (a) {
             case 0:
-                sprintf(s,"ramp: Ramp Output");
+                sprintf(s,"Ramp Output");
                 break;
             case 1:
-                sprintf(s,"ramp: Signal End of Ramp");
+                sprintf(s,"Signal End of Ramp");
+                break;
+            case 2:
+                sprintf(s,"Dumpout");
                 break;
         }
         
@@ -397,13 +405,21 @@ void ramp_list(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
 
 void ramp_any(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
     uint8_t i;
-    if (proxy_getinlet((t_object *)x)==2) {
-        for (i=0;i<LAST;i++) {
-            if (strcmp(s->s_name,name[i])==0) {
-                ramp_mode(x,s,argc,argv);
+    t_atom av;
+    switch (proxy_getinlet((t_object *)x)) {
+        case 0:
+            if (strcmp(s->s_name,"unmask")==0) {
+                atom_setlong(&av,1);
+                ramp_mask(x, NULL, 1, &av);
                 break;
-                }
-        }
+            }
+        case 2:
+            for (i=0;i<LAST;i++) {
+                if (strcmp(s->s_name,name[i])==0) {
+                    ramp_mode(x,s,argc,argv);
+                    break;
+                    }
+            }
     }
 }
 
@@ -417,11 +433,16 @@ void ramp_set(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
             switch (atom_gettype(argv+(i%argc))) {
                 case A_LONG:
                 case A_FLOAT:
-                    x->r_values[i].bgn  = x->r_values[i].act;
-                    x->r_values[i].dst  = atom_getfloat(argv+(i%argc));
-                    x->r_values[i].prog = 0;
-                    x->r_values[i].type = atom_gettype(argv+(i%argc));
-                    if (argc<=i) x->r_values[i].act = x->r_values[i].dst;
+                    if (x->r_values[i].mask == true) {
+                        x->r_values[i].bgn  = x->r_values[i].act;               // new begin is actual value
+                        x->r_values[i].dst  = atom_getfloat(argv+(i%argc));     // new destination is the transmitted value
+                        x->r_values[i].prog = 0;                                // new destination mean new start
+                        x->r_values[i].type = atom_gettype(argv+(i%argc));      // new destination has a type
+                    }
+                    else if (i>=argc)
+                        x->r_values[i].bgn =
+                        x->r_values[i].act =
+                        x->r_values[i].dst = 0;                                 // for value above list length reset to 0
                     break;
             }
         }
@@ -435,7 +456,8 @@ void ramp_time(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
             switch (atom_gettype(argv+(i%argc))) {
                 case A_LONG:
                 case A_FLOAT:
-                    x->r_values[i].time = atom_getlong(argv+(i%argc));
+                    if (x->r_values[i].mask == true)
+                        x->r_values[i].time = atom_getlong(argv+(i%argc));
                     break;
             }
         }
@@ -445,7 +467,7 @@ void ramp_time(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
         for (i=0;i<x->r_len;i++) {
                 atom_setlong(&temp[i],x->r_values[i].time);
             }
-        outlet_anything(x->r_outlet2, gensym("time"), x->r_len, temp);
+        outlet_anything(x->r_outlet3, gensym("time"), x->r_len, temp);
     }
 }
 
@@ -457,7 +479,8 @@ void ramp_mode(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
             for (i=0;i<LAST;i++) {
                 if (strcmp(s->s_name,name[i])==0) {
                     for (j=0;j<256;j++) {
-                        x->r_values[j].mode=i;
+                        if (x->r_values[i].mask == true)
+                            x->r_values[j].mode=i;
                     }
                     return;
                 }
@@ -467,7 +490,7 @@ void ramp_mode(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
                 for (i=0;i<x->r_len;i++) {
                     atom_setlong(&temp[i],x->r_values[i].mode);
                 }
-                outlet_anything(x->r_outlet2, gensym("mode"), x->r_len, temp);
+                outlet_anything(x->r_outlet3, gensym("mode"), x->r_len, temp);
                 return;
             }
             else {
@@ -488,18 +511,21 @@ void ramp_mode(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
         }
         for (i=0;i<256;i++) {
             if ((s)&&(i%(argc+1) == 0)) {
-                x->r_values[i].mode=mode;
+                if (x->r_values[i].mask == true)
+                    x->r_values[i].mode=mode;
             }
             else {
                 switch (atom_gettype(argv+(i%(argc+(s?1:0))-(s?1:0)))) {
                     case A_LONG:
                     case A_FLOAT:
-                        x->r_values[i].mode = atom_getlong(argv+(i%(argc+(s?1:0))-(s?1:0)));
+                        if (x->r_values[i].mask == true)
+                            x->r_values[i].mode = atom_getlong(argv+(i%(argc+(s?1:0))-(s?1:0)));
                         break;
                     case A_SYM:
                         for (j=0;j<LAST;j++) {
                             if (strcmp(atom_getsym(argv+(i%(argc+(s?1:0))-(s?1:0)))->s_name,name[j])==0) {
-                                x->r_values[i].mode = j;
+                                if (x->r_values[i].mask == true)
+                                    x->r_values[i].mode = j;
                                 break;
                             }
                         }
@@ -507,6 +533,27 @@ void ramp_mode(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
                 }
             }
         }
+    }
+}
+
+void ramp_mask(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
+    uint16_t i;
+    if (argc != 0) {
+        for (i=0;i<256;i++) {
+            switch (atom_gettype(argv+(i%argc))) {
+                case A_LONG:
+                case A_FLOAT:
+                    x->r_values[i].mask = atom_getlong(argv+(i%argc)) == 0 ? false : true;
+                    break;
+            }
+        }
+    }
+    else {
+        t_atom temp[x->r_len];
+        for (i=0;i<x->r_len;i++) {
+            atom_setlong(&temp[i],x->r_values[i].mask);
+        }
+        outlet_anything(x->r_outlet3, gensym("time"), x->r_len, temp);
     }
 }
 
@@ -536,8 +583,10 @@ void ramp_update(t_ramp *x) {
             }
             x->r_values[i].act=val;
         }
-        if ((x->r_values[i].prog == x->r_values[i].time) && (x->r_reset_time==1))
-            x->r_values[i].prog = x->r_values[i].time = 0;
+        if (x->r_values[i].prog == x->r_values[i].time) {
+            if (x->r_reset_time==1)
+                x->r_values[i].prog = x->r_values[i].time = 0;
+        }
     }
 
     //-------- output the result
