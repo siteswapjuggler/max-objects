@@ -116,12 +116,12 @@
                 Turns the smoothing on and off.
             </description>
         </attribute>
-        <attribute name="float_output" get="1" set="1" type="int" size="1">
+        <attribute name="force_output" get="1" set="1" type="int" size="1">
             <digest>
-                Force float output
+                Force output data type
             </digest>
             <description>
-                Force the output of float value even with integer data input.
+                Choose to keep or force output data type to int or float.
             </description>
         </attribute>
         <attribute name="smooth" get="1" set="1" type="float" size="1">
