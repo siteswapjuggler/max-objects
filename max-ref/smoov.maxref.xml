@@ -47,7 +47,7 @@
 	</outletlist>
 	<!--ARGUMENTS-->
 	<objarglist>
-		<objarg name="list-elements" optional="1" type="float">
+		<objarg name="smooth" optional="1" type="float">
 			<digest>
 				Smooth factor value.
 			</digest>
