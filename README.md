@@ -1,2 +1,2 @@
-# smoov
-Max smoothing external for raw data input.
+# max-objects
+A collection of new max externals.
