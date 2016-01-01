@@ -16,6 +16,13 @@
     structure variable >> voir Flexible Array Member
 */
 
+#ifdef WIN_VERSION
+#define MAXAPI_USE_MSCRT
+#endif
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 #include "ext.h"			// you must include this - it contains the external object's link to available Max functions
 #include "ext_obex.h"		// this is required for all objects using the newer style for writing objects.
@@ -90,7 +97,7 @@ typedef struct _ramp {          // defines our object's internal variables for e
     long        r_grain;        // interval beetween outputs
     char        r_reset_time;   // reset time to 0 when a ramp is done
     char        r_force_output; // force data output type
-    t_inter     r_values[256];  // array of ramped values
+    t_inter     *r_values;      // array of ramped values
     void        *r_clock;       // set a clock for this object
     void        *r_proxy;       // inlet proxy
     void        *r_outlet1;		// outlet creation - inlets are automatic, but objects must "own" their own outlets
@@ -172,14 +179,17 @@ void *ramp_new(t_symbol *s, long argc, t_atom *argv) {	// n = float argument typ
     
 	t_ramp *x = (t_ramp *)object_alloc(ramp_class);     // create a new instance of this object
     
+    t_inter *buffer = malloc(256*sizeof(t_inter));
+    x->r_values = buffer;
+    
     float val   = 0.;
     long  time  = 0.;
     long  grain = 20;
     long  mode  = LINEAR;
     
-    uint8_t  argorder = 0;
+    unsigned char  argorder = 0;
     
-    uint16_t i,j;
+    unsigned short i,j;
     for (i=0;(i<argc)&&(i<2);i++) {
         
         /* arguments:
@@ -243,14 +253,14 @@ void *ramp_new(t_symbol *s, long argc, t_atom *argv) {	// n = float argument typ
 
     settings:
     for (i=0;i<256;i++) {
-        x->r_values[i].bgn   = val;         // set initial value in the instance's data structure
-        x->r_values[i].dst   = val;         // set initial value in the instance's data structure
-        x->r_values[i].act   = val;         // set initial value in the instance's data structure
-        x->r_values[i].prog  = val;         // set initial value in the instance's data structure
-        x->r_values[i].time  = time;        // set initial value in the instance's data structure
-        x->r_values[i].mode  = mode;        // set initial value in the instance's data structure
-        x->r_values[i].mask  = true;           // set initial value in the instance's data structure
-        x->r_values[i].type  = A_LONG;      // set initial value in the instance's data structure
+        (x->r_values+i)->bgn   = val;         // set initial value in the instance's data structure
+        (x->r_values+i)->dst   = val;         // set initial value in the instance's data structure
+        (x->r_values+i)->act   = val;         // set initial value in the instance's data structure
+        (x->r_values+i)->prog  = val;         // set initial value in the instance's data structure
+        (x->r_values+i)->time  = time;        // set initial value in the instance's data structure
+        (x->r_values+i)->mode  = mode;        // set initial value in the instance's data structure
+        (x->r_values+i)->mask  = true;           // set initial value in the instance's data structure
+        (x->r_values+i)->type  = A_LONG;      // set initial value in the instance's data structure
         }
     
     x->r_len = 1;                           // set 1 by default
@@ -274,6 +284,7 @@ void *ramp_new(t_symbol *s, long argc, t_atom *argv) {	// n = float argument typ
 }
 
 void ramp_free(t_ramp *x) {
+    free(x->r_values);
     freeobject(x->r_clock);
 }
 
@@ -315,23 +326,24 @@ void ramp_assist(t_ramp *x, void *b, long m, long a, char *s) {
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
 
 void ramp_bang(t_ramp *x) {
-    uint16_t i;
+    unsigned short i;
     bool noramp = true;
-    t_atom temp[x->r_len];
+    t_atom *temp = malloc(x->r_len*sizeof(t_atom));
     
     for (i=0;i<x->r_len;i++) {
         // if ramp time = 0, output result directly and bang for finish immediatly if all ramp times == 0
-        if  (x->r_values[i].time == 0)
-            x->r_values[i].act = x->r_values[i].dst;
-        else if  (x->r_values[i].act != x->r_values[i].dst)
+        if  ((x->r_values+i)->time == 0)
+            (x->r_values+i)->act = (x->r_values+i)->dst;
+        else if  ((x->r_values+i)->act != (x->r_values+i)->dst)
             noramp = false;
         
         // get foat or int value output depending on input and attribute settings
-        if (((x->r_values[i].type == A_LONG) &&(x->r_force_output == 0))||(x->r_force_output == 1)) atom_setlong(&temp[i],round(x->r_values[i].act));
-        if (((x->r_values[i].type == A_FLOAT)&&(x->r_force_output == 0))||(x->r_force_output == 2)) atom_setfloat(&temp[i],x->r_values[i].act);
+        if ((((x->r_values+i)->type == A_LONG) &&(x->r_force_output == 0))||(x->r_force_output == 1)) atom_setlong(&temp[i],round((x->r_values+i)->act));
+        if ((((x->r_values+i)->type == A_FLOAT)&&(x->r_force_output == 0))||(x->r_force_output == 2)) atom_setfloat(&temp[i],(x->r_values+i)->act);
         }
     
     outlet_list(x->r_outlet1, NULL, x->r_len,temp);
+    free(temp);
     if (noramp == true) outlet_bang(x->r_outlet2);
 }
 
@@ -404,7 +416,7 @@ void ramp_list(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
 }
 
 void ramp_any(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
-    uint8_t i;
+    unsigned char i;
     t_atom av;
     switch (proxy_getinlet((t_object *)x)) {
         case 0:
@@ -427,22 +439,22 @@ void ramp_any(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
 
 void ramp_set(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
     if (argc != 0) {
-        uint16_t i;
+        unsigned short i;
         x->r_len = (argc>256) ? 256 : argc;
         for (i=0;i<256;i++) {
             switch (atom_gettype(argv+(i%argc))) {
                 case A_LONG:
                 case A_FLOAT:
-                    if (x->r_values[i].mask == true) {
-                        x->r_values[i].bgn  = x->r_values[i].act;               // new begin is actual value
-                        x->r_values[i].dst  = atom_getfloat(argv+(i%argc));     // new destination is the transmitted value
-                        x->r_values[i].prog = 0;                                // new destination mean new start
-                        x->r_values[i].type = atom_gettype(argv+(i%argc));      // new destination has a type
+                    if ((x->r_values+i)->mask == true) {
+                        (x->r_values+i)->bgn  = (x->r_values+i)->act;               // new begin is actual value
+                        (x->r_values+i)->dst  = atom_getfloat(argv+(i%argc));     // new destination is the transmitted value
+                        (x->r_values+i)->prog = 0;                                // new destination mean new start
+                        (x->r_values+i)->type = atom_gettype(argv+(i%argc));      // new destination has a type
                     }
                     else if (i>=argc)
-                        x->r_values[i].bgn =
-                        x->r_values[i].act =
-                        x->r_values[i].dst = 0;                                 // for value above list length reset to 0
+                        (x->r_values+i)->bgn =
+                        (x->r_values+i)->act =
+                        (x->r_values+i)->dst = 0;                                 // for value above list length reset to 0
                     break;
             }
         }
@@ -450,48 +462,50 @@ void ramp_set(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
 }
 
 void ramp_time(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
-    uint16_t i;
+    unsigned short i;
     if (argc != 0) {
         for (i=0;i<256;i++) {
             switch (atom_gettype(argv+(i%argc))) {
                 case A_LONG:
                 case A_FLOAT:
-                    if (x->r_values[i].mask == true)
-                        x->r_values[i].time = atom_getlong(argv+(i%argc));
+                    if ((x->r_values+i)->mask == true)
+                        (x->r_values+i)->time = atom_getlong(argv+(i%argc));
                     break;
             }
         }
     }
     else {
-        t_atom temp[x->r_len];
+		t_atom *temp = malloc(x->r_len*sizeof(t_atom));
         for (i=0;i<x->r_len;i++) {
-                atom_setlong(&temp[i],x->r_values[i].time);
+                atom_setlong(&temp[i],(x->r_values+i)->time);
             }
         outlet_anything(x->r_outlet3, gensym("time"), x->r_len, temp);
+		free(temp);
     }
 }
 
 void ramp_mode(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
-    uint16_t i,j;
+    unsigned short i,j;
     
     if (argc == 0) {
         if (s) {
             for (i=0;i<LAST;i++) {
                 if (strcmp(s->s_name,name[i])==0) {
                     for (j=0;j<256;j++) {
-                        if (x->r_values[i].mask == true)
+                        if ((x->r_values+i)->mask == true)
                             x->r_values[j].mode=i;
                     }
                     return;
                 }
             }
             if (strcmp(s->s_name,"mode")==0) {
-                t_atom temp[x->r_len];
-                for (i=0;i<x->r_len;i++) {
-                    atom_setlong(&temp[i],x->r_values[i].mode);
+				t_atom *temp = malloc(x->r_len*sizeof(t_atom));
+				for (i = 0; i<x->r_len; i++) {
+                    atom_setlong(&temp[i],(x->r_values+i)->mode);
                 }
                 outlet_anything(x->r_outlet3, gensym("mode"), x->r_len, temp);
-                return;
+				free(temp);
+				return;
             }
             else {
                 post("ramp: do not understant %s",s->s_name);
@@ -500,7 +514,7 @@ void ramp_mode(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
         }
     }
     else {
-        uint8_t mode;
+        unsigned char mode;
         if (s) {
             for (i=0;i<LAST;i++) {
                 if (strcmp(s->s_name,name[i])==0) {
@@ -511,21 +525,21 @@ void ramp_mode(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
         }
         for (i=0;i<256;i++) {
             if ((s)&&(i%(argc+1) == 0)) {
-                if (x->r_values[i].mask == true)
-                    x->r_values[i].mode=mode;
+                if ((x->r_values+i)->mask == true)
+                    (x->r_values+i)->mode=mode;
             }
             else {
                 switch (atom_gettype(argv+(i%(argc+(s?1:0))-(s?1:0)))) {
                     case A_LONG:
                     case A_FLOAT:
-                        if (x->r_values[i].mask == true)
-                            x->r_values[i].mode = atom_getlong(argv+(i%(argc+(s?1:0))-(s?1:0)));
+                        if ((x->r_values+i)->mask == true)
+                            (x->r_values+i)->mode = atom_getlong(argv+(i%(argc+(s?1:0))-(s?1:0)));
                         break;
                     case A_SYM:
                         for (j=0;j<LAST;j++) {
                             if (strcmp(atom_getsym(argv+(i%(argc+(s?1:0))-(s?1:0)))->s_name,name[j])==0) {
-                                if (x->r_values[i].mask == true)
-                                    x->r_values[i].mode = j;
+                                if ((x->r_values+i)->mask == true)
+                                    (x->r_values+i)->mode = j;
                                 break;
                             }
                         }
@@ -537,55 +551,56 @@ void ramp_mode(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
 }
 
 void ramp_mask(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
-    uint16_t i;
+    unsigned short i;
     if (argc != 0) {
         for (i=0;i<256;i++) {
             switch (atom_gettype(argv+(i%argc))) {
                 case A_LONG:
                 case A_FLOAT:
-                    x->r_values[i].mask = atom_getlong(argv+(i%argc)) == 0 ? false : true;
+                    (x->r_values+i)->mask = atom_getlong(argv+(i%argc)) == 0 ? false : true;
                     break;
             }
         }
     }
     else {
-        t_atom temp[x->r_len];
+        t_atom *temp = malloc(x->r_len*sizeof(t_atom));
         for (i=0;i<x->r_len;i++) {
-            atom_setlong(&temp[i],x->r_values[i].mask);
+            atom_setlong(&temp[i],(x->r_values+i)->mask);
         }
         outlet_anything(x->r_outlet3, gensym("time"), x->r_len, temp);
+        free(temp);
     }
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
 
 void ramp_update(t_ramp *x) {
-    uint16_t i;
+    unsigned short i;
     bool output = false;
     bool finished = true;
     
     clock_getftime(&x->r_time);
     
     for (i=0;i<x->r_len;i++) {
-        double val   = x->r_values[i].bgn;
-        double dst   = x->r_values[i].dst;
+        double val   = (x->r_values+i)->bgn;
+        double dst   = (x->r_values+i)->dst;
         
-        if ((dst != x->r_values[i].act) && (dst != val)) {
+        if ((dst != (x->r_values+i)->act) && (dst != val)) {
             output = true;
-            if ((x->r_values[i].time - x->r_values[i].prog) > x->r_grain ) {
+            if (((x->r_values+i)->time - (x->r_values+i)->prog) > x->r_grain ) {
                 finished = false;
-                x->r_values[i].prog += x->r_grain;
-                val += (dst-val)*ramp_calc(x->r_values[i].prog/(double)x->r_values[i].time,x->r_values[i].mode);
+                (x->r_values+i)->prog += x->r_grain;
+                val += (dst-val)*ramp_calc((x->r_values+i)->prog/(double)(x->r_values+i)->time,(x->r_values+i)->mode);
             }
             else {
-                x->r_values[i].prog = x->r_values[i].time;
+                (x->r_values+i)->prog = (x->r_values+i)->time;
                 val = dst;
             }
-            x->r_values[i].act=val;
+            (x->r_values+i)->act=val;
         }
-        if (x->r_values[i].prog == x->r_values[i].time) {
+        if ((x->r_values+i)->prog == (x->r_values+i)->time) {
             if (x->r_reset_time==1)
-                x->r_values[i].prog = x->r_values[i].time = 0;
+                (x->r_values+i)->prog = (x->r_values+i)->time = 0;
         }
     }
 
