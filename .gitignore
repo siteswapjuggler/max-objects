@@ -1,32 +1,49 @@
-# Object files
-*.o
-*.ko
-*.obj
-*.elf
+#OS junk files
+[Tt]humbs.db
+*.DS_Store
 
-# Precompiled Headers
-*.gch
+#Visual Studio files
+*.[Oo]bj
+*.user
+*.aps
 *.pch
-
-# Libraries
+*.vspscc
+*.vssscc
+*_i.c
+*_p.c
+*.ncb
+*.suo
+*.tlb
+*.tlh
+*.bak
+*.[Cc]ache
+*.ilk
+*.log
 *.lib
-*.a
-*.la
-*.lo
+*.sbr
+*.sdf
+*.pyc
+*.xml
+ipch/
+obj/
+[Bb]in
+**/[Dd]ebug*/
+**/[Rr]elease*/
+Ankh.NoLoad
 
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
+#Tooling
+_ReSharper*/
+*.resharper
+[Tt]est[Rr]esult*
 
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
+#Project files
+[Bb]uild/
 
-# Debug files
-*.dSYM/
+#Subversion files
+.svn
+
+# Office Temp Files
+~$*
+
+# Video and documentation
+**/max-doc
