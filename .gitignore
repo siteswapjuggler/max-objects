@@ -47,3 +47,6 @@ _ReSharper*/
 
 # Video and documentation
 **/max-doc
+
+.vs
+*.sln

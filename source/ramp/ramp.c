@@ -24,6 +24,8 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+#define MAX_OBJECT 2048
+
 #include "ext.h"			// you must include this - it contains the external object's link to available Max functions
 #include "ext_obex.h"		// this is required for all objects using the newer style for writing objects.
 
@@ -179,7 +181,7 @@ void *ramp_new(t_symbol *s, long argc, t_atom *argv) {	// n = float argument typ
     
 	t_ramp *x = (t_ramp *)object_alloc(ramp_class);     // create a new instance of this object
     
-    t_inter *buffer = malloc(256*sizeof(t_inter));
+	t_inter *buffer = malloc(MAX_OBJECT*sizeof(t_inter));
     x->r_values = buffer;
     
     float val   = 0.;
@@ -189,7 +191,7 @@ void *ramp_new(t_symbol *s, long argc, t_atom *argv) {	// n = float argument typ
     
     unsigned char  argorder = 0;
     
-    unsigned short i,j;
+    unsigned int i,j;
     for (i=0;(i<argc)&&(i<2);i++) {
         
         /* arguments:
@@ -252,7 +254,7 @@ void *ramp_new(t_symbol *s, long argc, t_atom *argv) {	// n = float argument typ
     }
 
     settings:
-    for (i=0;i<256;i++) {
+	for (i=0;i<MAX_OBJECT;i++) {
         (x->r_values+i)->bgn   = val;         // set initial value in the instance's data structure
         (x->r_values+i)->dst   = val;         // set initial value in the instance's data structure
         (x->r_values+i)->act   = val;         // set initial value in the instance's data structure
@@ -326,7 +328,7 @@ void ramp_assist(t_ramp *x, void *b, long m, long a, char *s) {
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
 
 void ramp_bang(t_ramp *x) {
-    unsigned short i;
+    unsigned int i;
     bool noramp = true;
     t_atom *temp = malloc(x->r_len*sizeof(t_atom));
     
@@ -439,9 +441,9 @@ void ramp_any(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
 
 void ramp_set(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
     if (argc != 0) {
-        unsigned short i;
-        x->r_len = (argc>256) ? 256 : argc;
-        for (i=0;i<256;i++) {
+        unsigned int i;
+        x->r_len = (argc>MAX_OBJECT) ? MAX_OBJECT : argc;
+        for (i=0;i<MAX_OBJECT;i++) {
             switch (atom_gettype(argv+(i%argc))) {
                 case A_LONG:
                 case A_FLOAT:
@@ -462,9 +464,9 @@ void ramp_set(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
 }
 
 void ramp_time(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
-    unsigned short i;
+    unsigned int i;
     if (argc != 0) {
-        for (i=0;i<256;i++) {
+        for (i=0;i<MAX_OBJECT;i++) {
             switch (atom_gettype(argv+(i%argc))) {
                 case A_LONG:
                 case A_FLOAT:
@@ -485,13 +487,13 @@ void ramp_time(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
 }
 
 void ramp_mode(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
-    unsigned short i,j;
+    unsigned int i,j;
     
     if (argc == 0) {
         if (s) {
             for (i=0;i<LAST;i++) {
                 if (strcmp(s->s_name,name[i])==0) {
-                    for (j=0;j<256;j++) {
+                    for (j=0;j<MAX_OBJECT;j++) {
                         if ((x->r_values+i)->mask == true)
                             x->r_values[j].mode=i;
                     }
@@ -523,7 +525,7 @@ void ramp_mode(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
                 }
             }
         }
-        for (i=0;i<256;i++) {
+        for (i=0;i<MAX_OBJECT;i++) {
             if ((s)&&(i%(argc+1) == 0)) {
                 if ((x->r_values+i)->mask == true)
                     (x->r_values+i)->mode=mode;
@@ -551,9 +553,9 @@ void ramp_mode(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
 }
 
 void ramp_mask(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
-    unsigned short i;
+    unsigned int i;
     if (argc != 0) {
-        for (i=0;i<256;i++) {
+        for (i=0;i<MAX_OBJECT;i++) {
             switch (atom_gettype(argv+(i%argc))) {
                 case A_LONG:
                 case A_FLOAT:
@@ -575,7 +577,7 @@ void ramp_mask(t_ramp *x, t_symbol *s, long argc, t_atom *argv) {
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
 
 void ramp_update(t_ramp *x) {
-    unsigned short i;
+    unsigned int i;
     bool output = false;
     bool finished = true;
     

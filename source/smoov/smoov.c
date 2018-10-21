@@ -16,6 +16,8 @@
 #define MAXAPI_USE_MSCRT
 #endif
 
+#define MAX_OBJECT 2048
+
 #include "ext.h"			// you must include this - it contains the external object's link to available Max functions
 #include "ext_obex.h"		// this is required for all objects using the newer style for writing objects.
 
@@ -107,14 +109,14 @@ void *smoov_new(t_symbol *s, long argc, t_atom *argv)	// n = float argument type
     
     attr_args_process(x, argc, argv);       // process arguments
     
-    t_atom *buffer0 = malloc(256*sizeof(t_atom));
-    t_atom *buffer1 = malloc(256*sizeof(t_atom));
+    t_atom *buffer0 = malloc(MAX_OBJECT*sizeof(t_atom));
+    t_atom *buffer1 = malloc(MAX_OBJECT*sizeof(t_atom));
 
     x->s_value0 = buffer0;
     x->s_value1 = buffer1;
     
     unsigned short i;
-    for (i=0;i<256;i++) {
+    for (i=0;i<MAX_OBJECT;i++) {
         atom_setlong(x->s_value0+i,0);     // set initial value in the instance's data structure
         atom_setlong(x->s_value1+i,0);     // set initial value in the instance's data structure
         }
@@ -141,7 +143,7 @@ void smoov_assist(t_smoov *x, void *b, long m, long a, char *s) // 4 final argum
 
 void smoov_bang(t_smoov *x)
 {
-    unsigned short i;
+    unsigned int i;
     for (i=0;i<x->s_len;i++) {
         if ((((x->s_value0+i)->a_type == A_LONG) &&(x->s_force_output==0))||(x->s_force_output==1)) {
             double val = (x->s_active) ? atom_getfloat(x->s_value0+i)*x->s_smooth + atom_getfloat(x->s_value1+i)*(1.-x->s_smooth) : atom_getfloat(x->s_value0+i);
@@ -181,8 +183,8 @@ void smoov_list(t_smoov *x, t_symbol *s, long argc, t_atom *argv)
 
 void smoov_set(t_smoov *x, t_symbol *s, long argc, t_atom *argv)
 {
-    unsigned short i;
-    x->s_len = (argc>256) ? 256 : argc;
+    unsigned int i;
+    x->s_len = (argc>MAX_OBJECT) ? MAX_OBJECT : argc;
     for (i=0;i<x->s_len;i++) {
         switch (atom_gettype(argv+i)) {
             case A_LONG:
